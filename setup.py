@@ -32,7 +32,7 @@ setuptools.setup(
         "scikit-image>=0.2.0",
         "pillow",
         "opencv-python",
-        "matplotlib",
+        "matplotlib==3.7.5",
         "IPython",
         "pdf2image",
         "scipy"
