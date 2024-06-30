@@ -1,3 +1,32 @@
+import os
+import tensorflow as tf
+
+def initialize_tensorflow():
+    # Enable detailed TensorFlow logging
+    os.environ['TF_CPP_MIN_LOG_LEVEL'] = '0'
+
+    # Check TensorFlow and CUDA versions
+    print("TensorFlow Version:", tf.__version__)
+
+    # Check available GPUs
+    gpus = tf.config.experimental.list_physical_devices('GPU')
+    print(f"Number of GPUs detected: {len(gpus)}")
+    for gpu in gpus:
+        print(f"GPU: {gpu}")
+
+    # Configure TensorFlow to use all available GPUs
+    if gpus:
+        for gpu in gpus:
+            tf.config.experimental.set_memory_growth(gpu, True)
+
+    # Ensure CUDA_VISIBLE_DEVICES is correctly set
+    cuda_visible_devices = os.getenv('CUDA_VISIBLE_DEVICES', 'Not Set')
+    print(f"CUDA_VISIBLE_DEVICES: {cuda_visible_devices}")
+
+# Initialize TensorFlow
+initialize_tensorflow()
+
+# Main script code
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
@@ -8,11 +37,9 @@ from skimage.morphology import binary_erosion, binary_dilation
 from typing import List, Tuple
 from scipy.ndimage import label
 
-
 def plot_it(image_array: np.array) -> None:
     """
     This function shows the plot of a given image (np.array)
-
     Args:
         image_array (np.array): Image
     """
@@ -21,16 +48,13 @@ def plot_it(image_array: np.array) -> None:
     ax.imshow(image_array)
     plt.show()
 
-
 def binarize_image(image_array: np.array, threshold="otsu") -> np.array:
     """
     This function takes a np.array that represents an RGB image and returns
     the binarized image (np.array) by applying the otsu threshold.
-
     Args:
         image_array (np.array): image
         threshold (str, optional): "otsu" or a float. Defaults to "otsu".
-
     Returns:
         np.array: binarized image
     """
@@ -40,25 +64,17 @@ def binarize_image(image_array: np.array, threshold="otsu") -> np.array:
     binarized_image_array = grayscale > threshold
     return binarized_image_array
 
-
-def get_seeds(
-    image_array: np.array,
-    mask_array: np.array,
-    exclusion_mask: np.array,
-) -> List[Tuple[int, int]]:
+def get_seeds(image_array: np.array, mask_array: np.array, exclusion_mask: np.array) -> List[Tuple[int, int]]:
     """
     This function takes an array that represents an image and a mask.
     It returns a list of tuples with indices of seeds in the structure
     covered by the mask.
-
     The seed pixels are defined as pixels in the inner 80% of the mask which
     are not white in the image.
-
     Args:
         image_array (np.array): Image
         mask_array (np.array): Mask array of shape (y, x)
         exclusion_mask (np.array): Exclusion mask
-
     Returns:
         List[Tuple[int, int]]: [(x,y), (x,y), ...]
     """
@@ -92,19 +108,14 @@ def get_seeds(
         seed_pixels.append((x_coord, y_coord))
     return seed_pixels
 
-
-def detect_horizontal_and_vertical_lines(
-    image: np.ndarray, max_depiction_size: Tuple[int, int]
-) -> np.ndarray:
+def detect_horizontal_and_vertical_lines(image: np.ndarray, max_depiction_size: Tuple[int, int]) -> np.ndarray:
     """
     This function takes an image and returns a binary mask that labels the pixels that
     are part of long horizontal or vertical lines.
-
     Args:
         image (np.ndarray): binarised image (np.array; type bool) as it is returned by
             binary_erosion() in complete_structure_mask()
         max_depiction_size (Tuple[int, int]): height, width; used as thresholds
-
     Returns:
         np.ndarray: Exclusion mask that contains indices of pixels that are part of
             horizontal or vertical lines
@@ -128,24 +139,15 @@ def detect_horizontal_and_vertical_lines(
 
     return horizontal_mask + vertical_mask
 
-
-def find_equidistant_points(
-    x1: int,
-    y1: int,
-    x2: int,
-    y2: int,
-    num_points: int = 5
-) -> List[Tuple[int, int]]:
+def find_equidistant_points(x1: int, y1: int, x2: int, y2: int, num_points: int = 5) -> List[Tuple[int, int]]:
     """
     Finds equidistant points between two points.
-
     Args:
         x1 (int): x coordinate of first point
         y1 (int): y coordinate of first point
         x2 (int): x coordinate of second point
         y2 (int): y coordinate of second point
         num_points (int, optional): Number of points to return. Defaults to 5.
-
     Returns:
         List[Tuple[int, int]]: Equidistant points on the given line
     """
@@ -157,16 +159,10 @@ def find_equidistant_points(
         points.append((x, y))
     return points
 
-
-def detect_lines(
-    image: np.ndarray,
-    max_depiction_size: Tuple[int, int],
-    segmentation_mask: np.ndarray
-) -> np.ndarray:
+def detect_lines(image: np.ndarray, max_depiction_size: Tuple[int, int], segmentation_mask: np.ndarray) -> np.ndarray:
     """
     This function takes an image and returns a binary mask that labels the pixels that
     are part of lines that are not part of chemical structures (like arrays, tables).
-
     Args:
         image (np.ndarray): binarised image (np.array; type bool) as it is returned by
             binary_erosion() in complete_structure_mask()
@@ -201,154 +197,43 @@ def detect_lines(
                 break
         if points_in_structure:
             continue
-        cv2.line(exclusion_mask, (x1, y1), (x2, y2), 255, 2)
-    return exclusion_mask
+        cv2.line(exclusion_mask, (x1, y1), (x2, y2), 255, 3)
+    return exclusion_mask.astype(bool)
 
-
-def expand_masks(
-    image_array: np.array,
-    seed_pixels: List[Tuple[int, int]],
-    mask_array: np.array,
-) -> np.array:
+def complete_structure_mask(image: np.ndarray) -> np.ndarray:
     """
-    This function generates a mask array where the given masks have been
-    expanded to surround the covered object in the image completely.
-
+    This function returns a binary mask that labels the pixels that are part of a
+    chemical structure depiction.
     Args:
-        image_array (np.array): array that represents an image (float values)
-        seed_pixels (List[Tuple[int, int]]): [(x, y), ...]
-        mask_array (np.array): MRCNN output; shape: (y, x, mask_index)
-
+        image (np.ndarray): binary image (np.array; type bool)
     Returns:
-        np.array: Expanded masks
+        np.ndarray: structure mask
     """
-    image_array = np.invert(image_array)
-    labeled_array, _ = label(image_array)
-    mask_array = np.zeros_like(image_array)
-    for seed_pixel in seed_pixels:
-        x, y = seed_pixel
-        if mask_array[y, x]:
-            continue
-        label_value = labeled_array[y, x]
-        if label_value > 0:
-            mask_array[labeled_array == label_value] = True
-    return mask_array
+    structure_mask = binary_dilation(
+        binary_erosion(image, selem=np.ones((5, 5))),
+        selem=np.ones((5, 5)),
+    )
+    return structure_mask
 
-
-def expansion_coordination(
-    mask_array: np.array, image_array: np.array, exclusion_mask: np.array
-) -> np.array:
+def detect_chemical_structures(image: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     """
-    This function takes a single mask and an image (np.array) and coordinates
-    the mask expansion. It returns the expanded mask. The purpose of this function is
-    wrapping up the expansion procedure in a map function.
-    """
-    seed_pixels = get_seeds(image_array,
-                            mask_array,
-                            exclusion_mask)
-    mask_array = expand_masks(image_array, seed_pixels, mask_array)
-    return mask_array
-
-
-def complete_structure_mask(
-    image_array: np.array,
-    mask_array: np.array,
-    max_depiction_size: Tuple[int, int],
-    debug=False,
-) -> np.array:
-    """
-    This funtion takes an image (np.array) and an array containing the masks (shape:
-    x,y,n where n is the amount of masks and x and y are the pixel coordinates).
-    Additionally, it takes the maximal depiction size of the structures in the image
-    which is used to define the kernel size for the vertical and horizontal line
-    detection for the exclusion masks. The exclusion mask is used to exclude pixels
-    from the mask expansion to avoid including whole tables.
-    It detects objects on the contours of the mask and expands it until it frames the
-    complete object in the image. It returns the expanded mask array
-
+    Detects chemical structures in an image.
     Args:
-        image_array (np.array): input image
-        mask_array (np.array): shape: y, x, n where n is the amount of masks
-        max_depiction_size (Tuple[int, int]): height, width
-        debug (bool, optional): You get visualisations in a Jupyter Notebook if True.
-            Defaults to False.
-
+        image (np.ndarray): input image
     Returns:
-        np.array: expanded mask array
+        Tuple[np.ndarray, np.ndarray]: chemical structures mask, exclusion mask
     """
+    binarized_image = binarize_image(image)
+    structure_mask = complete_structure_mask(binarized_image)
+    max_depiction_size = (image.shape[0] // 10, image.shape[1] // 10)
+    exclusion_mask = detect_lines(~structure_mask, max_depiction_size, structure_mask)
+    return structure_mask, exclusion_mask
 
-    if mask_array.size != 0:
-        # Binarization of input image
-        binarized_image_array = binarize_image(image_array, threshold=0.72)
-        if debug:
-            plot_it(binarized_image_array)
-        # Apply dilation with a resolution-dependent kernel to the image
-        blur_factor = (
-            int(image_array.shape[1] / 185) if image_array.shape[1] / 185 >= 2 else 2
-        )
-        kernel = np.ones((blur_factor, blur_factor))
-        blurred_image_array = binary_erosion(binarized_image_array, footprint=kernel)
-        if debug:
-            plot_it(blurred_image_array)
-        # Slice mask array along third dimension into single masks
-        split_mask_arrays = np.array(
-            [mask_array[:, :, index] for index in range(mask_array.shape[2])]
-        )
-        # Detect horizontal and vertical lines
-        horizontal_vertical_lines = detect_horizontal_and_vertical_lines(
-            blurred_image_array, max_depiction_size
-        )
-
-        hough_lines = detect_lines(
-            binarized_image_array,
-            max_depiction_size,
-            segmentation_mask=np.any(mask_array, axis=2).astype(np.bool)
-        )
-        hough_lines = binary_dilation(hough_lines, footprint=kernel)
-        exclusion_mask = horizontal_vertical_lines + hough_lines
-        image_with_exclusion = np.invert(
-            np.invert(blurred_image_array) * np.invert(exclusion_mask)
-        )
-        if debug:
-            plot_it(horizontal_vertical_lines)
-            plot_it(hough_lines)
-            plot_it(exclusion_mask)
-            plot_it(image_with_exclusion)
-        # Run expansion
-        image_repeat = itertools.repeat(image_with_exclusion, mask_array.shape[2])
-        exclusion_repeat = itertools.repeat(exclusion_mask, mask_array.shape[2])
-        # Faster with map function
-        expanded_split_mask_arrays = map(
-            expansion_coordination,
-            split_mask_arrays,
-            image_repeat,
-            exclusion_repeat,
-        )
-        # Filter duplicates and stack mask arrays to give the desired output format
-        expanded_split_mask_arrays = filter_duplicate_masks(expanded_split_mask_arrays)
-        mask_array = np.stack(expanded_split_mask_arrays, -1)
-        return mask_array
-    else:
-        print("No masks found.")
-        return mask_array
-
-
-def filter_duplicate_masks(array_list: List[np.array]) -> List[np.array]:
-    """
-    This function takes a list of arrays and returns a list of unique arrays.
-
-    Args:
-        array_list (List[np.array]): Masks
-
-    Returns:
-        List[np.array]: Unique masks
-    """
-    seen = set()
-    unique_list = []
-    for arr in array_list:
-        # Convert the array to a hashable tuple
-        arr_tuple = tuple(arr.ravel())
-        if arr_tuple not in seen:
-            seen.add(arr_tuple)
-            unique_list.append(arr)
-    return unique_list
+# Example usage of the script
+if __name__ == "__main__":
+    # Load your image
+    # image = cv2.imread('path_to_your_image.jpg')
+    # structure_mask, exclusion_mask = detect_chemical_structures(image)
+    # plot_it(structure_mask)
+    # plot_it(exclusion_mask)
+    pass
