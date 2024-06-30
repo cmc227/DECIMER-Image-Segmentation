@@ -28,10 +28,8 @@ import tensorflow.keras.models as KM
 
 from . import utils
 from distutils.version import LooseVersion
-
-os.environ["CUDA_VISIBLE_DEVICES"] = "3"
-
 gpus = tf.config.experimental.list_physical_devices("GPU")
+print('segmentation, mrcnn, model, gpus: {gpus}')
 for gpu in gpus:
     tf.config.experimental.set_memory_growth(gpu, True)
 
