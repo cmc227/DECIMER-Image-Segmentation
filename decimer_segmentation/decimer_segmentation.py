@@ -17,9 +17,13 @@ from pdf2image.exceptions import PDFInfoNotInstalledError
 from typing import List, Tuple
 from PIL import Image
 from .complete_structure import complete_structure_mask
+print('complete structure imported)
 from .mrcnn import model as modellib
+print('model imported')
 from .mrcnn import visualize
+print('visualise imported')
 from .mrcnn import moldetect
+print('moldetect')
 
 
 warnings.filterwarnings("ignore")
