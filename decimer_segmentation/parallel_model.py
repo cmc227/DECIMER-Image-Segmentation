@@ -16,26 +16,30 @@ class ParallelModel(KM.Model):
         keras_model: The Keras model to parallelize
         gpu_count: Number of GPUs. Must be > 1
         """
-        # Initialize the base Model
-        super(ParallelModel, self).__init__(inputs=keras_model.inputs, outputs=keras_model.outputs)
-
         self.inner_model = keras_model
         self.gpu_count = gpu_count
+        self._base_model_initialized = False
+
+        # Initialize the base Model with empty inputs and outputs initially
+        super(ParallelModel, self).__init__()
+
+        # After base Model is initialized, set inputs and outputs
+        self.inputs = self.inner_model.inputs
         merged_outputs = self.make_parallel()
-        
-        # Set the model inputs and outputs
-        self._init_set_name(keras_model.name)
-        self._base_model_initialized = True
-        self._is_graph_network = keras_model._is_graph_network
-        self.inputs = keras_model.inputs
         self.outputs = merged_outputs
         self.built = True
+        self._base_model_initialized = True
 
     def __getattribute__(self, attrname):
         """Redirect loading and saving methods to the inner model. That's where
         the weights are stored."""
-        if 'load' in attrname or 'save' in attrname:
+        # Ensure that inner_model is initialized before accessing attributes
+        if attrname == 'inner_model':
+            return super(ParallelModel, self).__getattribute__(attrname)
+        
+        if self._base_model_initialized and (attrname.startswith('load') or attrname.startswith('save')):
             return getattr(self.inner_model, attrname)
+
         return super(ParallelModel, self).__getattribute__(attrname)
 
     def summary(self, *args, **kwargs):
@@ -55,9 +59,7 @@ class ParallelModel(KM.Model):
                                            self.inner_model.inputs)}
 
         output_names = self.inner_model.output_names
-        outputs_all = []
-        for i in range(len(self.inner_model.outputs)):
-            outputs_all.append([])
+        outputs_all = [[] for _ in range(len(self.inner_model.outputs))]
 
         # Run the model call() on each GPU to place the ops there
         for i in range(self.gpu_count):
