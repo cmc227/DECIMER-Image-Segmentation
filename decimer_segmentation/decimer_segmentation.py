@@ -34,8 +34,8 @@ class InferenceConfig(moldetect.MolDetectConfig):
     """
 
     # Run detection on one image at a time
-    GPU_COUNT = 1
-    IMAGES_PER_GPU = 1
+    GPU_COUNT = 4
+    IMAGES_PER_GPU = 8
     DETECTION_MIN_CONFIDENCE = 0.7
 
 
@@ -68,7 +68,7 @@ def segment_chemical_structures_from_file(
     else:
         images = [cv2.imread(file_path)]
     if len(images) > 1:
-        with Pool(4) as pool:
+        with Pool(32) as pool:
             starmap_args = [(im, expand) for im in images]
             segments = pool.starmap(segment_chemical_structures, starmap_args)
             segments = [su for li in segments for su in li]
