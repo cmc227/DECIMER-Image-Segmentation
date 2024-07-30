@@ -1,23 +1,7 @@
-"""
-Mask R-CNN
-Multi-GPU Support for Keras.
-
-Copyright (c) 2017 Matterport, Inc.
-Licensed under the MIT License (see LICENSE for details)
-Written by Waleed Abdulla
-
-Ideas and a small code snippets from these sources:
-https://github.com/fchollet/keras/issues/2436
-https://medium.com/@kuza55/transparent-multi-gpu-training-on-tensorflow-with-keras-8b0016fd9012
-https://github.com/avolkov1/keras_experiments/blob/master/keras_exp/multigpu/
-https://github.com/fchollet/keras/blob/master/keras/utils/training_utils.py
-"""
-
 import tensorflow as tf
 import keras.backend as K
 import keras.layers as KL
 import keras.models as KM
-
 
 class ParallelModel(KM.Model):
     """Subclasses the standard Keras Model and adds multi-GPU support.
@@ -32,11 +16,20 @@ class ParallelModel(KM.Model):
         keras_model: The Keras model to parallelize
         gpu_count: Number of GPUs. Must be > 1
         """
+        # Initialize the base Model
+        super(ParallelModel, self).__init__(inputs=keras_model.inputs, outputs=keras_model.outputs)
+
         self.inner_model = keras_model
         self.gpu_count = gpu_count
         merged_outputs = self.make_parallel()
-        super(ParallelModel, self).__init__(inputs=self.inner_model.inputs,
-                                            outputs=merged_outputs)
+        
+        # Set the model inputs and outputs
+        self._init_set_name(keras_model.name)
+        self._base_model_initialized = True
+        self._is_graph_network = keras_model._is_graph_network
+        self.inputs = keras_model.inputs
+        self.outputs = merged_outputs
+        self.built = True
 
     def __getattribute__(self, attrname):
         """Redirect loading and saving methods to the inner model. That's where
@@ -103,7 +96,6 @@ class ParallelModel(KM.Model):
                 merged.append(m)
         return merged
 
-
 if __name__ == "__main__":
     # Testing code below. It creates a simple model to train on MNIST and
     # tries to run it on 2 GPUs. It saves the graph so it can be viewed
@@ -117,7 +109,7 @@ if __name__ == "__main__":
     from keras.datasets import mnist
     from keras.preprocessing.image import ImageDataGenerator
 
-    GPU_COUNT = 2
+    GPU_COUNT = 4
 
     # Root directory of the project
     ROOT_DIR = os.path.abspath("../")
